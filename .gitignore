@@ -4,7 +4,7 @@ __pycache__/
 .DS_Store
 .idea/
 
-# 大文件：数据集和模型权重（千万别传，传了必报错）
+# 大文件：数据集和模型权重
 dataset_cmu/
 dataset_penn/
 dataset_raw_penn/
