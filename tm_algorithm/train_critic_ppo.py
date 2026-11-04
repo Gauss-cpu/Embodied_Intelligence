@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 
-
+# loading the environment
 class Env3D_RL:
     def __init__(self):
         self.mass = 1.0
@@ -27,7 +27,7 @@ class Env3D_RL:
         self.pos = self.start.copy()
         self.vel = np.zeros(3)
         self.step_cnt = 0
-        self.prev_dist = np.linalg.norm(self.pos - self.target)  # 记录初始距离
+        self.prev_dist = np.linalg.norm(self.pos - self.target)
         return self.get_state()
 
     def get_state(self):
@@ -54,27 +54,25 @@ class Env3D_RL:
 
         current_dist = np.linalg.norm(self.pos - self.target)
 
-        # 【核心修改：距离引导奖励】
-        # 如果靠近了终点，奖励正数；如果远离了终点，奖励负数
         reward = (self.prev_dist - current_dist) * 10.0
         self.prev_dist = current_dist
 
         done = False
 
         if self.check_collision(self.pos):
-            reward = -50.0  # 撞墙重罚，直接死
+            reward = -50.0
             done = True
         elif current_dist < 1.0:
-            reward = 200.0  # 到终点给巨大奖励
+            reward = 200.0
             done = True
         elif self.step_cnt >= self.max_steps:
-            reward = -20.0  # 超时惩罚（比撞墙轻一点点）
+            reward = -20.0
             done = True
 
         return self.get_state(), reward, done
 
 
-# ==================== PPO 网络 ====================
+# ppo network
 class ActorCritic(nn.Module):
     def __init__(self, state_dim=9, action_dim=3):
         super().__init__()
@@ -91,13 +89,13 @@ class ActorCritic(nn.Module):
         return self.actor(h), self.actor_std.exp().expand_as(self.actor(h)), self.critic(h)
 
 
-# ==================== 训练主循环 ====================
+# training epoch
 def train():
     env = Env3D_RL()
     model = ActorCritic()
     optimizer = optim.Adam(model.parameters(), lr=3e-4)
 
-    print("开始带有距离引导的训练...")
+    print("start training...")
     for episode in range(3000):
         state = env.reset()
         done = False
@@ -157,7 +155,7 @@ def train():
 
     torch.save(model.shared.state_dict(), "tm_shared.pth")
     torch.save(model.critic.state_dict(), "tm_critic.pth")
-    print("✅ 训练完成！权重已保存。")
+    print("training finished, weight saved")
 
 
 if __name__ == "__main__":

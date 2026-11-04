@@ -11,13 +11,8 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def rot_x(a): c, s = math.cos(a), math.sin(a); return np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
-
-
 def rot_y(a): c, s = math.cos(a), math.sin(a); return np.array([[c, 0, s], [0, 1, 0], [-s, 0, c]])
-
-
 def rot_z(a): c, s = math.cos(a), math.sin(a); return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
-
 
 def parse_single_bvh(bvh_path):
     try:
@@ -28,6 +23,7 @@ def parse_single_bvh(bvh_path):
         current_joint = None
         channel_count = 0
 
+        # extracting data from the video datasets
         for line in lines:
             line = line.strip()
             if line.startswith("ROOT") or line.startswith("JOINT"):
@@ -47,7 +43,6 @@ def parse_single_bvh(bvh_path):
             elif line == "MOTION":
                 break
 
-        # 加上脚踝
         target_joints = ["Hips", "LeftUpLeg", "LeftLeg", "LeftFoot", "RightUpLeg", "RightLeg", "RightFoot"]
         for t in target_joints:
             if t not in joints:
@@ -75,6 +70,7 @@ def parse_single_bvh(bvh_path):
             parts = line.split()
             if len(parts) < channel_count: continue
 
+            # final direction and absolute coordinates
             # Hips
             R_root = rot_z(math.radians(get_val("Hips", "Zrotation", parts))) @ \
                      rot_x(math.radians(get_val("Hips", "Xrotation", parts))) @ \
@@ -147,10 +143,10 @@ def parse_single_bvh(bvh_path):
 
 if __name__ == "__main__":
     bvh_files = list(BASE_DIR.rglob("*.bvh"))
-    print(f"共找到 {len(bvh_files)} 个文件，开始提取完整 3D 关节...")
+    print(f"find {len(bvh_files)} files，start to extract 3d joints...")
     results = []
     with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         for i, res in enumerate(executor.map(parse_single_bvh, bvh_files)):
             if res: results.append(res)
-            if (i + 1) % 200 == 0: print(f"进度: {i + 1}/{len(bvh_files)}")
-    print(f"全部完成！数据在 {OUT_DIR}")
+            if (i + 1) % 200 == 0: print(f"progress: {i + 1}/{len(bvh_files)}")
+    print(f"completed！saved in {OUT_DIR}")

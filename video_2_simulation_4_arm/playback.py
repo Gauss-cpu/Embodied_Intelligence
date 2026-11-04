@@ -6,11 +6,8 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
-
-# === 从 arm3d.py 复制这些函数进来 ===
-# rot_x, rot_y, rot_z
-# R_shoulder, R_elbow, R_wrist
-# forward_kinematics
+import sys
+from pathlib import Path
 
 def rot_x(a):
     c, s = np.cos(a), np.sin(a)
@@ -43,42 +40,34 @@ def forward_kinematics(q):
     p_end   = p_wrist + L3 * hand_dir
     return p_elbow, p_wrist, p_end
 
-# === 读轨迹 ===
-import sys
-from pathlib import Path
-
-# 从命令行读要播哪个 json，不传就随机挑一个
 DATASET = Path.home() / "Desktop/Physical_Intelligence/dataset_penn"
 if len(sys.argv) > 1:
     json_path = Path(sys.argv[1])
 else:
-    # 随机挑一个
     all_json = sorted(DATASET.glob("penn_*/*.json"))
-    print(f"数据集里共 {len(all_json)} 条轨迹")
+    print(f"there are {len(all_json)} trajectories in the dataset")
     json_path = all_json[0]
 
-print(f"播放: {json_path.name}")
+print(f"played: {json_path.name}")
 with open(json_path) as f:
     data = json.load(f)
 
-# 兼容两种格式：旧的 q_trajectory 是 list，新的是 dict 带 trajectory
 if isinstance(data, dict):
     q_traj = data["trajectory"]
-    print(f"  类别: {data.get('category')}, video_id: {data.get('video_id')}, "
-          f"帧数: {len(q_traj)}")
+    print(f"categories: {data.get('category')}, video_id: {data.get('video_id')}, "
+          f"frames: {len(q_traj)}")
 else:
     q_traj = data
 
-# 关键：把 q1 强制为 0（因为不可信）
 qs = []
 for qt in q_traj:
     q = list(qt["q"])
-    q[0] = 0.0          # 关掉 q1
+    q[0] = 0.0
     qs.append(np.array(q))
 
-print(f"加载 {len(qs)} 帧轨迹")
+print(f"loading {len(qs)} frames of trajectory")
 
-# === 动画 ===
+# animations
 fig = plt.figure(figsize=(7, 7))
 ax = fig.add_subplot(111, projection='3d')
 ax.set_xlim(-2, 2); ax.set_ylim(-2, 2); ax.set_zlim(-2.2, 0.5)

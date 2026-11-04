@@ -13,35 +13,30 @@ from pathlib import Path
 import pickle
 import time
 
-# ==================== 配置 ====================
 DATA_PATH = Path.home() / "Desktop/Physical_Intelligence/dataset_cmu/features/leg_dataset.npz"
 MODEL_DIR = Path.home() / "Desktop/Physical_Intelligence/video_2_simulation_4_leg"
 DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
 
-BATCH_SIZE = 2048  # 400万数据，可以开大一点
+BATCH_SIZE = 2048
 EPOCHS = 20
 LR = 1e-3
 
-print(f"使用设备: {DEVICE}")
+print(f"device used: {DEVICE}")
 
-# ==================== 1. 加载并标准化数据 ====================
-print("加载数据...")
+# 1. Uploading and primarily process the data
+print("loading dataset...")
 data = np.load(DATA_PATH, allow_pickle=True)
 X_raw = data["X"]
 Y_raw = data["Y"]
 
-# 400万数据如果太大，为了快速验证，你可以先截取前 50 万条测试
-# X_raw = X_raw[:500000]
-# Y_raw = Y_raw[:500000]
 
-print(f"原始 X: {X_raw.shape}, Y: {Y_raw.shape}")
+print(f"Original X: {X_raw.shape}, Y: {Y_raw.shape}")
 
-# 划分训练集和验证集
 X_train, X_val, Y_train, Y_val = train_test_split(
     X_raw, Y_raw, test_size=0.1, random_state=42
 )
 
-# 标准化 (非常重要)
+# Standard Scaler
 scaler_X = StandardScaler()
 X_train = scaler_X.fit_transform(X_train)
 X_val = scaler_X.transform(X_val)
@@ -50,11 +45,9 @@ scaler_Y = StandardScaler()
 Y_train = scaler_Y.fit_transform(Y_train)
 Y_val = scaler_Y.transform(Y_val)
 
-# 保存标准化器，供以后物理引擎推理时使用
 with open(MODEL_DIR / "scalers.pkl", "wb") as f:
     pickle.dump({"scaler_X": scaler_X, "scaler_Y": scaler_Y}, f)
 
-# 转成 Tensor
 X_train_t = torch.tensor(X_train, dtype=torch.float32)
 Y_train_t = torch.tensor(Y_train, dtype=torch.float32)
 X_val_t = torch.tensor(X_val, dtype=torch.float32)
@@ -64,7 +57,7 @@ train_loader = DataLoader(TensorDataset(X_train_t, Y_train_t), batch_size=BATCH_
 val_loader = DataLoader(TensorDataset(X_val_t, Y_val_t), batch_size=BATCH_SIZE)
 
 
-# ==================== 2. 定义 DNN 模型 ====================
+# 2. Defining the DNN model
 class TorqueNet(nn.Module):
     def __init__(self, input_dim=20, output_dim=4):
         super().__init__()
@@ -88,13 +81,13 @@ model = TorqueNet().to(DEVICE)
 optimizer = torch.optim.Adam(model.parameters(), lr=LR)
 criterion = nn.MSELoss()
 
-print(f"模型参数量: {sum(p.numel() for p in model.parameters())}")
+print(f"number of model parameters: {sum(p.numel() for p in model.parameters())}")
 
-# ==================== 3. 训练循环 ====================
+# 3. training epoch
 train_losses = []
 val_losses = []
 
-print("开始训练...")
+print("starting to train...")
 for epoch in range(EPOCHS):
     t0 = time.time()
     model.train()
@@ -111,7 +104,6 @@ for epoch in range(EPOCHS):
 
     tr_loss /= len(train_loader.dataset)
 
-    # 验证
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
@@ -124,19 +116,19 @@ for epoch in range(EPOCHS):
     train_losses.append(tr_loss)
     val_losses.append(val_loss)
 
-    print(f"Epoch {epoch + 1:2d} | Train MSE: {tr_loss:.6f} | Val MSE: {val_loss:.6f} | 耗时: {time.time() - t0:.1f}s")
+    print(f"Epoch {epoch + 1:2d} | Train MSE: {tr_loss:.6f} | Val MSE: {val_loss:.6f} | time used: {time.time() - t0:.1f}s")
 
-# ==================== 4. 保存模型 ====================
+# 4. Saving the model
 torch.save(model.state_dict(), MODEL_DIR / "dnn_torque_model.pt")
-print("已保存模型: dnn_torque_model.pt")
+print("saved: dnn_torque_model.pt")
 
-# ==================== 5. 画 Loss 曲线 ====================
+# 5. Drawing out the loss curve
 plt.figure(figsize=(10, 5))
 plt.plot(train_losses, label="Train Loss")
 plt.plot(val_losses, label="Val Loss")
 plt.title("DNN 行为克隆训练曲线")
 plt.xlabel("Epoch")
-plt.ylabel("MSE Loss (标准化后)")
+plt.ylabel("MSE Loss")
 plt.legend()
 plt.grid(True, alpha=0.3)
 plt.show()

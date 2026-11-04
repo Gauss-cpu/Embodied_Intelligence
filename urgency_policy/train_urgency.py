@@ -1,12 +1,14 @@
+import os
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+os.environ["HF_HUB_OFFLINE"] = "1"
+
 import pandas as pd
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from sentence_transformers import SentenceTransformer
 from torch.utils.data import DataLoader, TensorDataset
-import os
 
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 print("读取数据集...")
 df = pd.read_csv("urgency_dataset.csv")
@@ -43,7 +45,7 @@ class UrgencyNet(nn.Module):
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 model = UrgencyNet().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
-criterion = nn.BCELoss()
+criterion = nn.MSELoss()
 
 print("开始训练...")
 for epoch in range(500):

@@ -12,7 +12,7 @@ import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 
 
-# ==================== 1. 3D 物理环境 (原版一模一样) ====================
+# 1. 3D physical world generation
 class Env3D:
     def __init__(self):
         self.mass = 1.0
@@ -48,7 +48,7 @@ class Env3D:
         return np.concatenate([new_pos, new_vel])
 
 
-# ==================== 2. 加载训练好的 PPO Critic ====================
+# 2. loading pretrained PPO model
 class CriticNet(nn.Module):
     def __init__(self, state_dim=9):
         super().__init__()
@@ -62,15 +62,14 @@ class CriticNet(nn.Module):
         return self.critic(self.shared(x))
 
 
-print("加载 PPO Critic 大脑...")
+print("loading PPO Critic...")
 critic_brain = CriticNet()
-# 这里读取你刚刚训练出来的权重文件
 critic_brain.shared.load_state_dict(torch.load("tm_shared.pth", weights_only=True))
 critic_brain.critic.load_state_dict(torch.load("tm_critic.pth", weights_only=True))
 critic_brain.eval()
 
 
-# ==================== 3. TM 算法 (融合 PPO 评估) ====================
+# 3. TM Algorithm
 class TM_Algorithm_3D:
     def __init__(self, env, num_samples=100, horizon_steps=12):
         self.env = env
@@ -94,10 +93,9 @@ class TM_Algorithm_3D:
         safe_actions = []
         collision_trajs = []
 
-        # 第一层 Safety
+        # Safety layer: filter out the routes that would involve contacting the wall
         for force in candidate_forces:
             temp_state = state.copy()
-            # 【修改】：这里保存完整的 6 维状态，为了以后给 Critic 算速度
             trajectory = [temp_state.copy()]
             is_safe = True
 
@@ -116,7 +114,7 @@ class TM_Algorithm_3D:
         if len(safe_actions) == 0:
             return -vel * 5.0, [], collision_trajs
 
-        # 第二层 Optimal
+        # Optimal layer: choosing the best route
         best_force = np.zeros(3)
         best_score = -float('inf')
         best_traj = []
@@ -126,18 +124,15 @@ class TM_Algorithm_3D:
             final_pos = final_state[:3]
             final_vel = final_state[3:]
 
-            # 【核心替换】：组装 9 维特征喂给神经网络
             rel_target = self.env.target - final_pos
             critic_input = np.concatenate([final_pos, final_vel, rel_target])
 
             state_tensor = torch.FloatTensor(critic_input).unsqueeze(0)
             with torch.no_grad():
-                # 神经网络直接给出长期价值打分
                 q_val = critic_brain(state_tensor).item()
 
             energy_penalty = self.lambda_energy * np.sum(force ** 2)
 
-            # 综合得分 = 大脑打分 - 能耗
             score = q_val - energy_penalty
 
             if score > best_score:
@@ -148,7 +143,7 @@ class TM_Algorithm_3D:
         return best_force, best_traj, collision_trajs
 
 
-# ==================== 4. 渲染 ====================
+# 4. rendering
 def main():
     env = Env3D()
     tm = TM_Algorithm_3D(env)

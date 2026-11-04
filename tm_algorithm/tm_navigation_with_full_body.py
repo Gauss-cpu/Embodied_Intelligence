@@ -1,3 +1,7 @@
+import os
+os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+os.environ["HF_HUB_OFFLINE"] = "1"
+
 import json
 import numpy as np
 import math
@@ -13,12 +17,10 @@ import matplotlib.animation as animation
 from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
-import os
 
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
 
-# ==================== 1. 加载骨骼数据 ====================
+# 1. uploading physical data
 ROOT = Path.home() / "Desktop/Physical_Intelligence"
 FULL_BODY_DIR = ROOT / "dataset_cmu/full_body_3d/008"
 full_body_file = list(FULL_BODY_DIR.rglob("*.json"))[0]
@@ -45,7 +47,7 @@ for f in traj_3d:
     local_joints_data.append(frame_joints)
 
 
-# ==================== 2. 定义与加载网络 ====================
+# 2. uploading the nets
 class UrgencyNet(nn.Module):
     def __init__(self, input_dim=384):
         super().__init__()
@@ -73,30 +75,28 @@ class CriticNet(nn.Module):
         return self.critic(self.shared(x))
 
 
-print("加载 Urgency 与 Critic 大脑...")
+print("loading urgency and critic...")
 text_encoder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device=DEVICE)
 urgency_brain = UrgencyNet().to(DEVICE)
 critic_brain = CriticNet().to(DEVICE)
 
 try:
-    # 【注意路径】：加载上级目录 urgency_policy 里的模型
     urgency_path = ROOT / "urgency_policy/urgency_model.pth" if (
                 ROOT / "urgency_policy/urgency_model.pth").exists() else Path("../urgency_policy/urgency_model.pth")
     urgency_brain.load_state_dict(torch.load(urgency_path, map_location=DEVICE, weights_only=True))
 
-    # 加载当前目录的 Critic 模型
     critic_brain.shared.load_state_dict(torch.load("tm_shared.pth", map_location=DEVICE, weights_only=True))
     critic_brain.critic.load_state_dict(torch.load("tm_critic.pth", map_location=DEVICE, weights_only=True))
-    print("✅ 所有模型加载成功！")
+    print("successfully loaded")
 except Exception as e:
-    print(f"⚠️ 模型加载失败: {e}")
+    print(f"unsuccessful: {e}")
     exit()
 
 urgency_brain.eval()
 critic_brain.eval()
 
 
-# ==================== 3. 物理环境 ====================
+# 3. loading environment
 class Env3D:
     def __init__(self):
         self.mass = 1.0
@@ -107,10 +107,8 @@ class Env3D:
 
         self.obstacles = [
             [3.0, 3.0, 0.0, 1.2, 6.0],
-            [6.0, 4.0, 0.0, 1.5, 5.0],
-            [2.0, 7.0, 0.0, 1.0, 7.0],
-            [7.0, 7.0, 0.0, 1.2, 4.0],
-            [5.0, 8.0, 0.0, 1.0, 6.0],
+            [7.0, 5.0, 0.0, 1.5, 5.0],
+            [4.0, 8.0, 0.0, 1.0, 7.0],
         ]
         self.dt = 0.05
 
@@ -139,9 +137,9 @@ class Env3D:
         return np.concatenate([new_pos, new_vel])
 
 
-# ==================== 4. TM 算法 ====================
+# 4. loading TM algorithm
 class TM_Algorithm_3D:
-    def __init__(self, env, num_samples=200, horizon_steps=20):
+    def __init__(self, env, num_samples=100, horizon_steps=15):
         self.env = env
         self.num_samples = num_samples
         self.horizon_steps = horizon_steps
@@ -175,7 +173,10 @@ class TM_Algorithm_3D:
                 safe_actions.append((force, trajectory))
 
         if len(safe_actions) == 0:
-            return -vel * 5.0, []
+            right_dir = np.array([-target_dir[1], target_dir[0], 0])
+            force = right_dir * 20.0 + np.random.normal(0, 2.0, 3)
+            force[2] = 0
+            return force, []
 
         best_force = np.zeros(3)
         best_score = -float('inf')
@@ -209,7 +210,7 @@ class TM_Algorithm_3D:
         return best_force, best_traj
 
 
-# ==================== 5. 渲染 ====================
+# 5. rendering
 def main():
     env = Env3D()
     tm = TM_Algorithm_3D(env)
@@ -277,7 +278,7 @@ def main():
         nonlocal state, step_cnt, frame_idx, is_success
 
         if is_success:
-            ax.set_title("Target Reached! 绝杀成功！", fontsize=20, color='green')
+            ax.set_title("Target Reached!", fontsize=20, color='green')
             return path_line, best_pred, line_spine, line_pelvis, line_larm, line_rarm, line_lleg, line_rleg
 
         if step_cnt >= max_steps:
@@ -285,31 +286,24 @@ def main():
             ax.set_title(f"Failed: Time Out! (Dist: {horizontal_dist:.2f})", fontsize=20, color='red')
             return path_line, best_pred, line_spine, line_pelvis, line_larm, line_rarm, line_lleg, line_rleg
 
-        # ==================== 核心替换区 ====================
-        # 1. 模拟外部事件输入（前半程悠闲，后半程逃命）
         if step_cnt < max_steps * 0.4:
             event = "Taking a leisurely walk"
         else:
             event = "A dog is chasing me, run for my life!"
 
-        # 2. 模型推理得出 Sigmoid 紧急度
         emb = text_encoder.encode([event], convert_to_tensor=True).to(DEVICE)
         with torch.no_grad():
             urgency = urgency_brain(emb).item()
 
-        # 3. 根据紧急度修改物理引擎的速度上限
         if urgency > 0.6:
-            env.max_speed = 2.5  # 狂奔
+            env.max_speed = 2.5
         else:
-            env.max_speed = 0.8  # 漫步
-        # ====================================================
+            env.max_speed = 0.8
 
-        # TM 导航
         best_force, best_traj = tm.get_action(state, urgency)
         state = env.step(state, best_force)
         step_cnt += 1
 
-        # 渲染更新
         vel = state[3:]
         heading = math.atan2(vel[1], vel[0]) if np.linalg.norm(vel) > 0.1 else 0.0
         frame_idx = (frame_idx + (3 if urgency > 0.6 else 1)) % frames_count
@@ -346,7 +340,6 @@ def main():
             ax.set_title("Target Reached!", fontsize=20, color='green')
             return path_line, best_pred, line_spine, line_pelvis, line_larm, line_rarm, line_lleg, line_rleg
 
-        # 动态标题
         title_color = 'red' if urgency > 0.6 else 'green'
         ax.set_title(
             f"Event: {event}\nUrgency: {urgency:.2f} | Speed: {env.max_speed:.1f} | Dist: {horizontal_dist:.2f}m",
