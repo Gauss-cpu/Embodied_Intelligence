@@ -11,7 +11,9 @@
 
 Unlike traditional robotic simulations that rely on purely kinematic playback, this project integrates a pure Lagrangian physics engine with a learned behavioral cloning network (DNN) and a PPO-guided sampling planner. It demonstrates how abstract textual events (e.g., *"A dog is chasing me!"*) are translated into high-dimensional emotional states (Valence & Urgency) to dynamically modulate the **physical torque**, **locomotion speed**, and **obstacle avoidance strategies** in real time.
 
-> **[ScreenRecording2026-11-05at18.29.08-ezgif.com-video-to-gif-converter.gif]** *(Show the 4-panel UI running: Navigation, Arm, Leg, Affective Monitor)*
+<div align="center">
+  <img src="demo.gif" alt="Affective Embodied AI Demo" width="800"/>
+</div>
 
 ---
 
