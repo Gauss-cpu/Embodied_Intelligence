@@ -45,15 +45,19 @@ The project is decoupled into four heterogeneous modules, unified by a central A
 ## Mathematical Foundations
 
 **1. Lagrangian Rigid-Body Dynamics**
-\[
- \tau = M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q) 
-\]
-Where \(M(q)\) is the mass matrix, \(C\) is the Coriolis/centrifugal term, and \(G\) is the gravity vector. 
+
+$$
+\tau = M(q)\ddot{q} + C(q,\dot{q})\dot{q} + G(q)
+$$
+
+Where $M(q)$ is the mass matrix, $C(q,\dot{q})\dot{q}$ is the Coriolis/centrifugal term, and $G(q)$ is the gravity vector.
 
 **2. Affective Modulation**
-\[
- \tau_{final} = \tau_{optimum} \times (1 + \alpha \cdot \text{Valence}) 
-\]
+
+$$
+\tau_{final} = \tau_{optimum} \times (1 + \alpha \cdot \text{Valence})
+$$
+
 Torque and trajectory gains are modulated by the Amygdala network output, simulating human adrenaline release during high-arousal states.
 
 ---
